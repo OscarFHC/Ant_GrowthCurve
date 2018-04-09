@@ -1,0 +1,177 @@
+---
+title: "Ant_GrowthCurve"
+author: "Oscar Feng-Hsun Chang"
+date: "2017 Nov. 30"
+output: 
+  html_document:
+    code_folding: show
+    highlight: textmate
+    keep_md: yes
+    number_sections: TRUE
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      toc_depth: 4
+---
+
+```{r warnings=FALSE, message=FALSE}
+ifelse(!require(lavaan), install.packages("lavaan"), library(lavaan))
+library(lavaan)
+
+ifelse(!require(MASS), install.packages("MASS"), library(MASS))
+library(MASS)
+
+ifelse(!require(faraway), install.packages("faraway"), library(faraway))
+library(faraway)
+
+ifelse(!require(lme4), install.packages("lme4"), library(lme4))
+library(lme4)
+
+ifelse(!require(nlme), install.packages("nlme"), library(nlme))
+library(nlme)
+
+ifelse(!require(ggplot2), install.packages("ggplot2"), library(ggplot2))
+library(ggplot2)
+
+ifelse(!require(plyr), install.packages("plyr"), library(plyr))
+library(plyr)
+
+ifelse(!require(magrittr), install.packages("magrittr"), library(magrittr))
+library(magrittr)
+
+ifelse(!require(reshape2), install.packages("reshape2"), library(reshape2))
+library(reshape2)
+
+ifelse(!require(cowplot), install.packages("cowplot"), library(cowplot))
+library(cowplot)
+
+ifelse(!require(vegan), install.packages("vegan"), library(vegan))
+library(vegan)
+```
+
+```{r, echo=FALSE}
+dat.raw = read.table(file="D:/Research/Ant_GrowthCurve/Antexpi.csv", header=TRUE, sep=",") 
+dat.raw[,"subject"] = as.character(dat.raw[,"subject"])
+
+dat.raw1 = read.table(file="D:/Research/Ant_GrowthCurve/Antexpiiandiii_new.csv", header=TRUE, sep="", fill=TRUE) %>%
+  subset(select=c("ColonyID", "Queen",	"Worker",	paste0("Wk", seq(1, 12, by=1))))
+```
+
+```{r}
+dat.raw %>%
+  ggplot() + 
+  geom_point(aes(x=week, y=value, color=factor(queen)))+
+  geom_smooth(aes(x=week, y=value, color=factor(queen)), method="loess", linetype=2)+ 
+  labs(x="Week", 
+       y="Fungus weight")+ 
+  scale_colour_discrete(name="Number of \nQueens")+
+  theme_bw() +
+  theme(panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"), 
+        axis.text=element_text(size=14), 
+        axis.title.x=element_text(size=14, face="bold", margin=margin(t = 8, r = 0, b = 0, l = 0)),
+        axis.title.y=element_text(size=14, face="bold", margin=margin(t = 0, r = 4, b = 0, l = 12)),
+        legend.key=element_rect(color="white", fill="white"), 
+        legend.title=element_text(size=14),
+        legend.text=element_text(size=14),
+        legend.background=element_rect(),
+        plot.caption=element_text(size=8, hjust=1, margin=margin(t = 12, r = 20, b = 0, l = 0)))
+```
+
+```{r}
+dat.raw1 %>%
+  #subset(Queen==0) %>%
+  melt(id.vars=c("Worker", "ColonyID", "Queen"), variable.name="Week", value.name="Fungus") %>%
+  mutate(Week=as.numeric(substr(as.character(Week), 3, 4))) %>%
+  ggplot() + 
+  geom_point(aes(x=Week, y=Fungus, color=factor(Worker)))+
+  geom_smooth(aes(x=Week, y=Fungus, color=factor(Worker)), method="loess", linetype=2)+ 
+  labs(x="Week", 
+       y="Fungus weight")+ 
+  scale_colour_discrete(name="Number of \nWorkers")+
+  theme_bw() +
+  theme(panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"), 
+        axis.text=element_text(size=14), 
+        axis.title.x=element_text(size=14, face="bold", margin=margin(t = 8, r = 0, b = 0, l = 0)),
+        axis.title.y=element_text(size=14, face="bold", margin=margin(t = 0, r = 4, b = 0, l = 12)),
+        legend.key=element_rect(color="white", fill="white"), 
+        legend.title=element_text(size=14),
+        legend.text=element_text(size=14),
+        legend.background=element_rect(),
+        plot.caption=element_text(size=8, hjust=1, margin=margin(t = 12, r = 20, b = 0, l = 0))) +
+  facet_wrap(~Queen, nrow=1, ncol=2)
+```
+
+```{r}
+rep = substr(unique(dat.raw[,"subject"]), 1, nchar(unique(dat.raw[,"subject"]))-1)
+rep.num=c()
+for (i in 1:length(unique(rep))){
+  rep.num = c(rep.num, length(which(rep == unique(rep)[i])))
+}   
+
+dat_mo = dat.raw %>%
+  mutate(month = (week-1)%/%4 + 1) %>%
+  dcast(trmt~month+variable, mean) %>%
+  mutate(trmt_temp = rep(paste0("queen", unique(dat.raw[,"queen"])), rep.num))
+colnames(dat_mo) = c("subject", paste0("t", seq(0, 8, by=1)), "trmt")
+
+dat_wk = dat.raw %>%
+  dcast(trmt~week+variable) %>%
+  mutate(trmt_temp = rep(paste0("queen", unique(dat.raw[,"queen"])), rep.num))
+colnames(dat_wk) = c("subject", paste0("t", unique(dat.raw[,"week"])), "trmt")
+
+mod_lm_mo = 
+'
+  i =~ 1*t0 + 1*t1 + 1*t2 + 1*t3 + 1*t4 + 1*t5 + 1*t6 + 1*t7 + 1*t8
+  s =~ 0*t1 + 1*t1 + 2*t2 + 3*t3 + 4*t4 + 5*t5 + 6*t6 + 7*t7 + 8*t8
+'
+
+fit_lm_mo = growth(mod_lm_mo, 
+                   data=dat_mo,
+                   group = "trmt")
+summary(fit_lm_mo)
+
+mod_lm_wk = 
+'
+  i =~ 1*t0 + 1*t1 + 1*t2 + 1*t3 + 1*t4 + 1*t5 + 1*t6 + 1*t7 + 1*t8 + 1*t9 + 1*t10 + 1*t11 + 1*t12 + 1*t13 + 1*t14 + 1*t15 +             1*t16 + 1*t17 + 1*t18 + 1*t19 + 1*t20 + 1*t21 + 1*t22 + 1*t23 + 1*t24 + 1*t25 + 1*t26 + 1*t27 + 1*t28 + 1*t29 + 1*t30 
+  s =~ 0*t0 + 1*t1 + 2*t2 + 3*t3 + 4*t4 + 5*t5 + 6*t6 + 7*t7 + 8*t8 + 9*t9 + 10*t10 + 11*t11 + 12*t12 + 13*t13 + 14*t14 +                15*t15 + 16*t16 + 17*t17 + 18*t18 + 19*t19 + 20*t20 + 21*t21 + 22*t22 + 23*t23 + 24*t24 + 25*t25 + 26*t26 + 27*t27 +              28*t28 + 29*t29 + 30*t30
+'
+
+fit_lm_wk = growth(mod_lm_wk, 
+                   data=dat_wk,
+                   group = "trmt")
+summary(fit_lm_wk)
+
+# These syntax produced error because (1) t0 has 0 variance and (2) sample size are too few to estimate coefficients for each group
+```
+
+```{r}
+lmer_wk = lmer(value~week + (1+week|subject), data=dat.raw)
+summary(lmer_wk)
+```
+
+```{r}
+mod_lm = 
+'
+  i =~ 1*Wk1 + 1*Wk2 + 1*Wk3 + 1*Wk4 + 1*Wk5 + 1*Wk6 + 1*Wk7 + 1*Wk8 + 1*Wk9 + 1*Wk10 + 1*Wk11 + 1*Wk12
+'
+  s =~ 0*Wk1 + 1*Wk2 + 2*Wk3 + 3*Wk4 + 4*Wk5 + 5*Wk6 + 6*Wk7 + 7*Wk8 + 8*Wk9 + 9*Wk10 + 10*Wk11 + 11*Wk12
+'
+
+fit_lm_mo = growth(mod_lm, 
+                   data=dat.raw1[which(dat.raw1[,"Queen"]==0),],
+                   group = "Worker")
+summary(fit_lm_mo)
+
+
+```
+
+
+

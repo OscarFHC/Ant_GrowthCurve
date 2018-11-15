@@ -4,9 +4,8 @@ library(tidyverse)
 library(ggplot2)
 
 # read-in your data
-rawdat <- read.table(file = "D:/Research/Ant_GrowthCurve/AndyAnts_ExpIII.csv",
+rawdat <- read.table(file = "https://raw.githubusercontent.com/OscarFHC/Ant_GrowthCurve/master/AndyAnts_ExpIII.csv",
                      sep = ",", header = TRUE, fill = TRUE)
-grep()
 
 # preping function for calculating SE
 Se_Fun <- function (dat){
